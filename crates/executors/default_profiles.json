@@ -325,9 +325,9 @@
                 }
             }
         },
-        "CLAWDBERT": {
+        "CLAWD_BERT": {
             "DEFAULT": {
-                "CLAWDBERT": {
+                "CLAWD_BERT": {
                     "max_attempts": 2,
                     "auto_pr": true
                 }

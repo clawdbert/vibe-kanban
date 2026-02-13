@@ -106,19 +106,19 @@ pub enum ExecutorError {
     sqlx(type_name = "TEXT", rename_all = "SCREAMING_SNAKE_CASE")
 )]
 pub enum CodingAgent {
-    ClaudeCode,
-    ClawdBert,
-    Amp,
-    Gemini,
-    Codex,
-    Opencode,
+    ClaudeCode(ClaudeCode),
+    ClawdBert(ClawdBert),
+    Amp(Amp),
+    Gemini(Gemini),
+    Codex(Codex),
+    Opencode(Opencode),
     #[serde(alias = "CURSOR")]
     #[strum_discriminants(serde(alias = "CURSOR"))]
     #[strum_discriminants(strum(serialize = "CURSOR", serialize = "CURSOR_AGENT"))]
-    CursorAgent,
-    QwenCode,
-    Copilot,
-    Droid,
+    CursorAgent(CursorAgent),
+    QwenCode(QwenCode),
+    Copilot(Copilot),
+    Droid(Droid),
     #[cfg(feature = "qa-mode")]
     QaMock(QaMockExecutor),
 }

@@ -155,17 +155,15 @@ impl StandardCodingAgentExecutor for ClawdBert {
     }
 
     fn get_availability_info(&self) -> crate::executors::AvailabilityInfo {
-        // Check if the dispatch script exists
-        if let Ok(path) = which::which("clawdbert-dispatch") {
+        // Check common locations for the dispatch script
+        let candidates: Vec<std::path::PathBuf> = vec![
+            std::path::PathBuf::from("/usr/local/bin/clawdbert-dispatch"),
+        ];
+        let home_candidate = dirs::home_dir()
+            .map(|h| h.join(".local").join("bin").join("clawdbert-dispatch"));
+
+        for path in candidates.into_iter().chain(home_candidate.into_iter()) {
             if path.exists() {
-                return crate::executors::AvailabilityInfo::InstallationFound;
-            }
-        }
-        // Also check common locations
-        let home = dirs::home_dir();
-        if let Some(home) = home {
-            let script_path = home.join(".local").join("bin").join("clawdbert-dispatch");
-            if script_path.exists() {
                 return crate::executors::AvailabilityInfo::InstallationFound;
             }
         }
