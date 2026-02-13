@@ -71,8 +71,19 @@ fn default_auto_pr() -> bool {
 
 impl ClawdBert {
     pub fn build_command_builder(&self) -> Result<CommandBuilder, CommandBuildError> {
-        let builder =
-            CommandBuilder::new("clawdbert-dispatch").params(["--output-format", "stream-json"]);
+        // Resolve dispatch script: env override > scripts/ relative to binary > cwd
+        let script = std::env::var("CLAWDBERT_DISPATCH_PATH")
+            .ok()
+            .filter(|s| !s.is_empty() && std::path::Path::new(s).exists())
+            .or_else(|| {
+                std::env::current_exe().ok()
+                    .and_then(|p| p.parent().map(|d| d.join("../scripts/clawdbert-dispatch.sh")))
+                    .filter(|p| p.exists())
+                    .map(|p| p.to_string_lossy().into_owned())
+            })
+            .unwrap_or_else(|| "scripts/clawdbert-dispatch.sh".to_string());
+
+        let builder = CommandBuilder::new(script);
 
         apply_overrides(builder, &self.cmd)
     }
@@ -155,15 +166,24 @@ impl StandardCodingAgentExecutor for ClawdBert {
     }
 
     fn get_availability_info(&self) -> crate::executors::AvailabilityInfo {
-        // Check common locations for the dispatch script
+        // The dispatch script lives in scripts/ relative to the VK binary.
+        // Also check CLAWDBERT_DISPATCH_PATH env var for overrides.
         let candidates: Vec<std::path::PathBuf> = vec![
-            std::path::PathBuf::from("/usr/local/bin/clawdbert-dispatch"),
+            // Env override
+            std::env::var("CLAWDBERT_DISPATCH_PATH")
+                .map(std::path::PathBuf::from)
+                .unwrap_or_default(),
+            // Relative to executable
+            std::env::current_exe()
+                .ok()
+                .and_then(|p| p.parent().map(|d| d.join("../scripts/clawdbert-dispatch.sh")))
+                .unwrap_or_default(),
+            // Repo-local fallback
+            std::path::PathBuf::from("scripts/clawdbert-dispatch.sh"),
         ];
-        let home_candidate = dirs::home_dir()
-            .map(|h| h.join(".local").join("bin").join("clawdbert-dispatch"));
 
-        for path in candidates.into_iter().chain(home_candidate.into_iter()) {
-            if path.exists() {
+        for path in &candidates {
+            if !path.as_os_str().is_empty() && path.exists() {
                 return crate::executors::AvailabilityInfo::InstallationFound;
             }
         }
