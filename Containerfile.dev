@@ -1,0 +1,79 @@
+# VK dev build container — builds our custom fork
+# Usage:
+#   podman build -f Containerfile.dev -t vk-dev .
+#   podman run --name vk-dev -p 3335:3000 \
+#     -v vk-dev-data:/home/appuser/.local/share/vibe-kanban \
+#     -e HOST=0.0.0.0 -e PORT=3000 \
+#     vk-dev
+
+# Build stage
+FROM docker.io/library/node:22-bookworm AS builder
+
+# Install build dependencies (Debian-based, not Alpine)
+RUN apt-get update && apt-get install -y --no-install-recommends \
+    curl build-essential pkg-config libssl-dev llvm-dev libclang-dev \
+    && rm -rf /var/lib/apt/lists/*
+
+# Install Rust nightly (matching rust-toolchain.toml)
+RUN curl --proto '=https' --tlsv1.2 -sSf https://sh.rustup.rs | sh -s -- -y \
+    --default-toolchain nightly-2025-12-04
+ENV PATH="/root/.cargo/bin:${PATH}"
+
+WORKDIR /app
+
+# -- Dependency caching layer --
+COPY package*.json pnpm-lock.yaml pnpm-workspace.yaml ./
+COPY frontend/package*.json ./frontend/
+COPY npx-cli/package*.json ./npx-cli/
+RUN npm install -g pnpm && pnpm install
+
+# Copy Cargo files for Rust dependency caching
+COPY Cargo.toml Cargo.lock rust-toolchain.toml ./
+COPY crates/ ./crates/
+COPY shared/ ./shared/
+
+# Pre-build Rust deps (this layer gets cached)
+RUN cargo build --release --bin server 2>&1 || true
+
+# Copy everything else
+COPY . .
+
+# Build frontend + backend
+RUN npm run generate-types || true
+RUN cd frontend && pnpm run build
+RUN cargo build --release --bin server
+
+# Runtime stage
+FROM docker.io/library/debian:bookworm-slim
+
+RUN apt-get update && apt-get install -y --no-install-recommends \
+    ca-certificates tini libgcc-s1 git wget curl \
+    && rm -rf /var/lib/apt/lists/*
+
+# Create app user
+RUN groupadd -g 1001 appgroup && \
+    useradd -u 1001 -g appgroup -m appuser
+
+# Copy binary
+COPY --from=builder /app/target/release/server /usr/local/bin/server
+
+# Copy frontend assets (VK serves these)
+COPY --from=builder /app/frontend/dist /app/frontend/dist
+
+# Create data + repos directories
+RUN mkdir -p /home/appuser/.local/share/vibe-kanban /repos && \
+    chown -R appuser:appgroup /home/appuser /repos /app
+
+USER appuser
+
+ENV HOST=0.0.0.0
+ENV PORT=3000
+EXPOSE 3000
+
+WORKDIR /repos
+
+HEALTHCHECK --interval=30s --timeout=3s --start-period=5s --retries=3 \
+    CMD wget --quiet --tries=1 --spider "http://${HOST:-localhost}:${PORT:-3000}" || exit 1
+
+ENTRYPOINT ["/usr/bin/tini", "--"]
+CMD ["server"]
