@@ -1,6 +1,6 @@
 # syntax=docker/dockerfile:1.6
 
-FROM node:24-alpine AS fe-builder
+FROM node:24.22.1-alpine AS fe-builder
 
 ARG POSTHOG_API_KEY=""
 ARG POSTHOG_API_ENDPOINT=""

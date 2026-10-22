@@ -17,7 +17,7 @@
     "url": "https://github.com/BloopAI/vibe-kanban"
   },
   "engines": {
-    "node": ">=20.19.0"
+    "node": ">=24.22.1"
   },
   "license": "",
   "description": "NPX wrapper around vibe-kanban and vibe-kanban-mcp",
